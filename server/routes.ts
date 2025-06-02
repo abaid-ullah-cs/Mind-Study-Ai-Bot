@@ -121,6 +121,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/messages/:messageId', isAuthenticated, async (req: any, res) => {
+    try {
+      const messageId = parseInt(req.params.messageId);
+      const message = await storage.getMessage(messageId);
+      
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+      
+      res.json(message);
+    } catch (error) {
+      console.error("Error fetching message:", error);
+      res.status(500).json({ message: "Failed to fetch message" });
+    }
+  });
+
   app.post('/api/channels/:channelId/messages', isAuthenticated, async (req: any, res) => {
     try {
       const channelId = parseInt(req.params.channelId);
