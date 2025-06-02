@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { X, Send, Brain } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { X, Send, Brain, FileText, HelpCircle, Download, ImageIcon, Zap } from "lucide-react";
 import { format } from "date-fns";
 
 interface ThreadSidebarProps {
@@ -20,6 +21,8 @@ export default function ThreadSidebar({ messageId, onClose }: ThreadSidebarProps
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [replyContent, setReplyContent] = useState("");
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
   // Get original message
   const { data: originalMessage } = useQuery({
@@ -61,6 +64,50 @@ export default function ThreadSidebar({ messageId, onClose }: ThreadSidebarProps
       toast({
         title: "Error",
         description: "Failed to generate AI response: " + error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Generate quick quiz mutation
+  const generateQuickQuizMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest("POST", "/api/ai/generate-quiz", data);
+    },
+    onSuccess: () => {
+      setIsGeneratingQuiz(false);
+      toast({
+        title: "Quiz Generated!",
+        description: "A new quiz has been created based on this article.",
+      });
+    },
+    onError: (error) => {
+      setIsGeneratingQuiz(false);
+      toast({
+        title: "Error",
+        description: "Failed to generate quiz: " + error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Generate study plan mutation
+  const generateStudyPlanMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest("POST", "/api/ai/generate-study-plan", data);
+    },
+    onSuccess: () => {
+      setIsGeneratingPlan(false);
+      toast({
+        title: "Study Plan Generated!",
+        description: "A personalized study plan has been created.",
+      });
+    },
+    onError: (error) => {
+      setIsGeneratingPlan(false);
+      toast({
+        title: "Error", 
+        description: "Failed to generate study plan: " + error.message,
         variant: "destructive",
       });
     },
@@ -116,6 +163,66 @@ export default function ThreadSidebar({ messageId, onClose }: ThreadSidebarProps
     return message.content.substring(0, 100) + (message.content.length > 100 ? "..." : "");
   };
 
+  // Get article context for quick actions
+  const getArticleContext = (message: any) => {
+    if (!message || message.messageType !== "article") return null;
+    return JSON.parse(message.content);
+  };
+
+  // Handle quick actions
+  const handleQuickQuiz = () => {
+    const article = getArticleContext(originalMessage);
+    if (!article) {
+      toast({
+        title: "Error",
+        description: "Can only generate quiz from article content",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingQuiz(true);
+    generateQuickQuizMutation.mutate({
+      topic: article.title,
+      subject: "Physics", // This would be dynamic based on channel
+      channelId: 1, // This would be dynamic
+      numQuestions: 3,
+    });
+  };
+
+  const handleStudyPlan = () => {
+    const article = getArticleContext(originalMessage);
+    if (!article) {
+      toast({
+        title: "Error", 
+        description: "Can only generate study plan from article content",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingPlan(true);
+    generateStudyPlanMutation.mutate({
+      subject: "Physics", // This would be dynamic
+      goals: `Master the concepts covered in: ${article.title}`,
+      timeframe: "2 weeks",
+    });
+  };
+
+  const handleExportPDF = () => {
+    toast({
+      title: "Export PDF",
+      description: "PDF export functionality will be available soon!",
+    });
+  };
+
+  const handleGenerateImage = () => {
+    toast({
+      title: "Generate Image",
+      description: "AI image generation will be available when you provide an OpenAI API key!",
+    });
+  };
+
   return (
     <div className="w-96 border-l border-gray-200 bg-gray-50 flex flex-col">
       <div className="p-4 border-b border-gray-200 bg-white">
@@ -138,6 +245,61 @@ export default function ThreadSidebar({ messageId, onClose }: ThreadSidebarProps
             </div>
           </CardContent>
         </Card>
+
+        {/* Quick Actions */}
+        <Card className="bg-white border border-gray-200">
+          <CardContent className="p-4">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+              <Zap className="w-4 h-4 mr-2 text-study-purple" />
+              Quick Actions
+            </h4>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs"
+                onClick={handleQuickQuiz}
+                disabled={isGeneratingQuiz || !getArticleContext(originalMessage)}
+              >
+                <HelpCircle className="w-3 h-3 mr-2" />
+                {isGeneratingQuiz ? "Generating..." : "Generate Quiz"}
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs"
+                onClick={handleStudyPlan}
+                disabled={isGeneratingPlan || !getArticleContext(originalMessage)}
+              >
+                <FileText className="w-3 h-3 mr-2" />
+                {isGeneratingPlan ? "Creating..." : "Study Plan"}
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs"
+                onClick={handleExportPDF}
+              >
+                <Download className="w-3 h-3 mr-2" />
+                Export PDF
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs"
+                onClick={handleGenerateImage}
+              >
+                <ImageIcon className="w-3 h-3 mr-2" />
+                Generate Image
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Separator />
 
         {/* Thread replies */}
         {threadsLoading ? (
