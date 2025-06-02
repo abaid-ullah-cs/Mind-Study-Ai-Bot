@@ -26,14 +26,20 @@ export const sessions = pgTable(
 );
 
 // User storage table.
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().notNull(),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 255 }).unique().notNull(),
+  password: varchar("password", { length: 255 }).notNull(),
+  firstName: varchar("first_name", { length: 100 }),
+  lastName: varchar("last_name", { length: 100 }),
   profileImageUrl: varchar("profile_image_url"),
   studyGoals: text("study_goals"),
+  bio: text("bio"),
+  timezone: varchar("timezone", { length: 50 }).default("UTC"),
+  emailVerified: boolean("email_verified").default(false),
+  resetToken: varchar("reset_token", { length: 255 }),
+  resetTokenExpiry: timestamp("reset_token_expiry"),
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -42,14 +48,14 @@ export const workspaces = pgTable("workspaces", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  ownerId: varchar("owner_id").notNull().references(() => users.id),
+  ownerId: integer("owner_id").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const workspaceMembers = pgTable("workspace_members", {
   id: serial("id").primaryKey(),
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: integer("user_id").notNull().references(() => users.id),
   role: varchar("role", { length: 50 }).notNull().default("member"), // member, admin
   joinedAt: timestamp("joined_at").defaultNow(),
 });
@@ -66,7 +72,7 @@ export const channels = pgTable("channels", {
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
   content: text("content").notNull(),
-  authorId: varchar("author_id").references(() => users.id), // null for AI messages
+  authorId: integer("author_id").references(() => users.id), // null for AI messages
   channelId: integer("channel_id").notNull().references(() => channels.id),
   messageType: varchar("message_type", { length: 50 }).notNull().default("text"), // text, article, quiz, image
   metadata: jsonb("metadata"), // for storing quiz data, article formatting, etc.
@@ -79,21 +85,23 @@ export const threads = pgTable("threads", {
   id: serial("id").primaryKey(),
   parentMessageId: integer("parent_message_id").notNull().references(() => messages.id),
   content: text("content").notNull(),
-  authorId: varchar("author_id").references(() => users.id), // null for AI replies
+  authorId: integer("author_id").references(() => users.id), // null for AI replies
   isAi: boolean("is_ai").notNull().default(false),
+  noteType: varchar("note_type", { length: 50 }).default("reply"), // reply, note, highlight
+  isRichText: boolean("is_rich_text").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const bookmarks = pgTable("bookmarks", {
   id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: integer("user_id").notNull().references(() => users.id),
   messageId: integer("message_id").notNull().references(() => messages.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const studyProgress = pgTable("study_progress", {
   id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: integer("user_id").notNull().references(() => users.id),
   channelId: integer("channel_id").notNull().references(() => channels.id),
   topicsStudied: integer("topics_studied").notNull().default(0),
   dailyGoal: integer("daily_goal").notNull().default(5),
@@ -215,8 +223,17 @@ export const insertStudyProgressSchema = createInsertSchema(studyProgress).omit(
   id: true,
 });
 
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  resetToken: true,
+  resetTokenExpiry: true,
+  lastLoginAt: true,
+});
+
 // Types
-export type UpsertUser = typeof users.$inferInsert;
+export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
 export type Workspace = typeof workspaces.$inferSelect;
